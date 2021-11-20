@@ -141,7 +141,7 @@ contract Bank is IBank{
     function borrow(address token, uint256 amount) override external returns (uint256) {
 
         //TODO: CHECK if We can go bankrupt
-
+        
         if (token == ETH) {
             if (hakAccounts[msg.sender].deposit + hakAccounts[msg.sender].interest == 0) {
                 revert("no collateral deposited");
@@ -153,12 +153,12 @@ contract Bank is IBank{
                 if (x<=0) {
                     revert("msg.value < amount to repay");
                 }
-                IERC20(token).transferFrom( address(this), address(msg.sender), x);
+                msg.sender.transfer(x);
                 emit Borrow(msg.sender, token, x, helper_collateral(token, msg.sender));
             }
             if (helper_collateral(token, msg.sender) >=15000) {
                 borrowed[msg.sender].deposit += amount;
-                IERC20(token).transferFrom( address(this), address(msg.sender), amount);
+                msg.sender.transfer(amount);
                 emit Borrow(msg.sender, token, amount, helper_collateral(token, msg.sender)); 
             }
             else {
@@ -175,16 +175,19 @@ contract Bank is IBank{
     function repay(address token, uint256 amount) override payable external returns (uint256) {
         //5% 
         if (token == ETH) {
-            if (borrowed[msg.sender].deposit + borrowed[msg.sender].interest == 0) {
+            if (borrowed[msg.sender].deposit == 0) {
                 revert ("nothing to repay");
             }else {
                 if (helper_collateral(token, msg.sender)<15000) {
                     revert("msg.value < amount to repay");
                 }
-                //borrowed[] * (5 / 100blocks) * (Blocks) - 1000
-                //amount - interest -> borrowed - rest
-                //
-                IERC20(token).transferFrom(address(msg.sender), address(this), amount);
+                if (borrowed[msg.sender].interest - amount<0){
+                    uint256 rest =  amount - borrowed[msg.sender].interest;
+                    borrowed[msg.sender].deposit -= rest;
+                }else {
+                    borrowed[msg.sender].interest -= amount;
+                }
+                IERC20(token).transferFrom(msg.sender, address(this), amount);
             }
         } else {
             revert ("token not supported");
@@ -193,8 +196,21 @@ contract Bank is IBank{
     }
     
     function liquidate(address token, address account) override payable external returns (bool) {
-
-        return true;
+  //5% 
+        if (token == ETH) {
+            if (borrowed[msg.sender].deposit == 0) {
+                revert ("token not supported");
+            }else {
+                if (helper_collateral(token, msg.sender)<15000) {
+                    revert("msg.value < amount to repay");
+                }
+                if (borrowed[msg.sender].interest + borrowed[msg.sender].deposit - msg.value==0)
+                IERC20(token).transferFrom(msg.sender, account, borrowed[msg.sender].interest + borrowed[msg.sender].deposit);
+                return true;
+                }
+        } else {
+            revert ("token not supported");
+        }
     }
     
     function getCollateralRatio(address token, address account) override view external returns (uint256){
