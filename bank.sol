@@ -29,6 +29,10 @@ contract Bank is IBank{
         user.interest += uint256(uint256(block.number - user.lastInterestBlock) * user.deposit) / 3333;
         user.lastInterestBlock = block.number;
     }
+    
+    function calc_temp_interest(Account memory user) private view returns (uint256){
+        return (((block.number - user.lastInterestBlock) * user.deposit) / 3333);
+    }
 
     function deposit(address token, uint256 amount) override payable external returns (bool) {
         
@@ -144,8 +148,13 @@ contract Bank is IBank{
     function getBalance(address token) override view external returns (uint256){
         // ether = ETH
         if (token == ETH) {
-            return etherAccounts[msg.sender].deposit;
+            Account storage account = etherAccounts[msg.sender];
+            return account.deposit + calc_temp_interest(account);
+        }else if (token == HAK){
+            Account storage account = hakAccounts[msg.sender];
+            return account.deposit + calc_temp_interest(account);
+        }else{
+            revert("token not supported");
         }
-        return hakAccounts[msg.sender].deposit;
     }
 }
