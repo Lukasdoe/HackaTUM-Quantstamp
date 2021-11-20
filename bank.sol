@@ -25,7 +25,7 @@ contract Bank is IBank{
         return IPriceOracle(PriceOracle).getVirtualPrice(token);
     }
 
-    function calc_interest(Account storage user) private view {
+    function calc_interest(Account storage user) private {
         user.interest += uint256(uint256(block.number - user.lastInterestBlock) * user.deposit) / 3333;
         user.lastInterestBlock = block.number;
     }
@@ -40,12 +40,12 @@ contract Bank is IBank{
                 revert();
             }
             Account storage account = hakAccounts[msg.sender];
-            account.deposit += amount;
             calc_interest(account);
+            account.deposit += amount;
         }else if (token == ETH){
             Account storage account = etherAccounts[msg.sender];
-            account.deposit += amount;
             calc_interest(account);
+            account.deposit += amount;
         }else{
             revert("token not supported");
         }
@@ -65,15 +65,27 @@ contract Bank is IBank{
                 revert("no balance");
             }
             if (amount > account.deposit){
-                revert("amount exeeds balance");
+                revert("amount exceeds balance");
             }else if (amount == 0){
-                msg.sender.transfer(account.deposit + account.interest);
+                uint256 result = account.deposit + account.interest;
+                msg.sender.transfer(result);
+                
+                emit Withdraw(msg.sender, token, result);
+                
                 account.deposit = 0;
                 account.interest = 0;
+                
+                return result;
             }else{
-                msg.sender.transfer(amount + account.interest);
+                uint256 result = amount + account.interest;
+                msg.sender.transfer(result);
+                
+                emit Withdraw(msg.sender, token, result);
+                
                 account.deposit -= amount;
                 account.interest = 0;
+                
+                return result;
             }
 
         }else if (token == HAK) {
@@ -85,26 +97,32 @@ contract Bank is IBank{
             if (amount > account.deposit){
                 revert("amount exeeds balance");
             }else if (amount == 0){
-                
-                if(!IERC20(token).transfer(msg.sender, account.deposit + account.interest)){
+                uint256 result = account.deposit + account.interest;
+                if(!IERC20(token).transfer(msg.sender, result)){
                     revert();
                 }
+                
+                emit Withdraw(msg.sender, token, result);
+                
                 account.deposit = 0;
                 account.interest = 0;
+                
+                return result;
             }else{
-                if(!IERC20(token).transfer(msg.sender, amount + account.interest)){
+                uint256 result = amount + account.interest;
+                if(!IERC20(token).transfer(msg.sender, result)){
                     revert();
                 }
+                
+                emit Withdraw(msg.sender, token, result);
                 account.deposit -= amount;
                 account.interest = 0;
+                
+                return result;
             }
         }else{
             revert("token not supported");
         }
-        
-        emit Withdraw(msg.sender, token, amount);
-        
-        return amount;
     }
     
     function borrow(address token, uint256 amount) override external returns (uint256) {
