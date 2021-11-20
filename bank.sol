@@ -32,8 +32,6 @@ contract Bank is IBank{
 
     function deposit(address token, uint256 amount) override payable external returns (bool) {
         
-        //Interest missing
-        
         if (amount == 0) {
             revert();
         }
@@ -41,9 +39,13 @@ contract Bank is IBank{
             if(!IERC20(token).transferFrom(msg.sender, address(this), amount)){
                 revert();
             }
-            hakAccounts[msg.sender].deposit += amount;
+            Account account = hakAccounts[msg.sender];
+            account.deposit += amount;
+            calc_interest(account);
         }else if (token == ETH){
-            etherAccounts[msg.sender].deposit += amount;
+            Account account = etherAccounts[msg.sender];
+            account.deposit += amount;
+            calc_interest(account);
         }else{
             revert("token not supported");
         }
