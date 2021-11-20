@@ -30,7 +30,7 @@ contract Bank is IBank{
             if (token != ETH || borrowed[account].deposit + borrowed[account].interest == 0) {
             return type(uint256).max;
         }
-        return (etherAccounts[account].deposit + etherAccounts[account].interest)* 10000 / (borrowed[account].deposit + borrowed[account].interest);
+        return (hakAccounts[account].deposit + hakAccounts[account].interest)* 10000 / (borrowed[account].deposit + borrowed[account].interest);
     }
 
 
