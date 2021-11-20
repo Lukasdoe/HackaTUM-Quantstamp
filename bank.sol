@@ -10,6 +10,7 @@ contract Bank is IBank{
 
     mapping(address => Account) etherAccounts;
     mapping(address => Account) hakAccounts;
+    mapping(address => Account) borrowed;
     
     address private PriceOracle = 0xc3F639B8a6831ff50aD8113B438E2Ef873845552;
     address private HAK = 0xBefeeD4CB8c6DD190793b1c97B72B60272f3EA6C;
@@ -24,6 +25,14 @@ contract Bank is IBank{
     function call_oracle(address token) private view returns (uint256) {
         return IPriceOracle(PriceOracle).getVirtualPrice(token);
     }
+    
+    function helper_collateral(address token, address account) private view returns (uint256) {
+            if (token != ETH || borrowed[account].deposit + borrowed[account].interest == 0) {
+            return type(uint256).max;
+        }
+        return (etherAccounts[account].deposit + etherAccounts[account].interest)* 10000 / (borrowed[account].deposit + borrowed[account].interest);
+    }
+
 
     function calc_interest(Account storage user) private {
         user.interest += uint256(uint256(block.number - user.lastInterestBlock) * user.deposit) / 3333;
@@ -130,19 +139,66 @@ contract Bank is IBank{
     }
     
     function borrow(address token, uint256 amount) override external returns (uint256) {
+
+        //TODO: CHECK if We can go bankrupt
+
+        if (token == ETH) {
+            if (hakAccounts[msg.sender].deposit + hakAccounts[msg.sender].interest == 0) {
+                revert("no collateral deposited");
+            }
+            if (amount==0) {
+                //etherAccounts[account].deposit * 10000 / borrowed[account]
+                // x = (etherAccounts[account].deposit * 10000 / max(15000))-borrowed[account]
+                uint256 x = ((etherAccounts[msg.sender].deposit + etherAccounts[msg.sender].interest) * 10000 / 15000 ) - (borrowed[msg.sender].deposit + borrowed[msg.sender].interest);
+                if (x<=0) {
+                    revert("msg.value < amount to repay");
+                }
+                IERC20(token).transferFrom( address(this), address(msg.sender), x);
+                emit Borrow(msg.sender, token, x, helper_collateral(token, msg.sender));
+            }
+            if (helper_collateral(token, msg.sender) >=15000) {
+                borrowed[msg.sender].deposit += amount;
+                IERC20(token).transferFrom( address(this), address(msg.sender), amount);
+                emit Borrow(msg.sender, token, amount, helper_collateral(token, msg.sender)); 
+            }
+            else {
+                revert("borrow would exceed collateral ratio");
+            }
+        }
+        else {
+            revert("token not supported");
+        }
+
         return 0;
     }
     
     function repay(address token, uint256 amount) override payable external returns (uint256) {
+        //5% 
+        if (token == ETH) {
+            if (borrowed[msg.sender].deposit + borrowed[msg.sender].interest == 0) {
+                revert ("nothing to repay");
+            }else {
+                if (helper_collateral(token, msg.sender)<15000) {
+                    revert("msg.value < amount to repay");
+                }
+                //borrowed[] * (5 / 100blocks) * (Blocks) - 1000
+                //amount - interest -> borrowed - rest
+                //
+                IERC20(token).transferFrom(address(msg.sender), address(this), amount);
+            }
+        } else {
+            revert ("token not supported");
+        }
         return 0;
     }
     
     function liquidate(address token, address account) override payable external returns (bool) {
+
         return true;
     }
     
     function getCollateralRatio(address token, address account) override view external returns (uint256){
-        return 0;
+        return helper_collateral(token, account);
     }
     
     function getBalance(address token) override view external returns (uint256){
