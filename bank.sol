@@ -2,11 +2,12 @@
 pragma solidity 0.7.0;
 
 import "bank_interface.sol";
+import "oracle.sol";
 
 contract Bank is IBank{
 
     mapping(address => Account) userAccounts;
-    address PriceOracle = "https://goerli.etherscan.io/address/0xc3F639B8a6831ff50aD8113B438E2Ef873845552";
+    address PriceOracle = 0xc3F639B8a6831ff50aD8113B438E2Ef873845552;
     address HAK = 0xBefeeD4CB8c6DD190793b1c97B72B60272f3EA6C;
     address ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
@@ -15,14 +16,13 @@ contract Bank is IBank{
         HAK = _HAK;
     }
 
-    function call_oracle(address token) private return (uint256) {
-        return PriceOracle.call(bytes4(keccak256("getVirtualPrice(" + token + ")")));
+    function call_oracle(address token) private view returns (uint256) {
+        return IPriceOracle(PriceOracle).getVirtualPrice(token);
     }
 
-    function calc_interest(Account user) private return (uint256) {
-        user.interest += ((block.number - user.lastInterestBlock) * (0.03 / 100)) * user.deposit;
+    function calc_interest(Account memory user) private view {
+        user.interest += uint256(uint256((block.number - user.lastInterestBlock) * 10000) * uint256(0.03 / 100 * 10000)) * user.deposit;
         user.lastInterestBlock = block.number;
-        return interest;
     }
 
     function deposit(address token, uint256 amount) override payable external returns (bool) {
@@ -30,7 +30,7 @@ contract Bank is IBank{
             return false;
         }
         if (token == HAK) {
-            amount *= call_oracle(HAK)
+            amount *= call_oracle(HAK);
         }
         else if (token != ETH) {
             return false;
@@ -44,7 +44,7 @@ contract Bank is IBank{
     
     function withdraw(address token, uint256 amount) override external returns (uint256) {
         if (token == HAK) {
-            amount *= call_oracle(HAK)
+            amount *= call_oracle(HAK);
         }
         else if (token != ETH) {
             return 0;
@@ -64,7 +64,7 @@ contract Bank is IBank{
         userAccounts[msg.sender].interest = 0;
         
         if (token == HAK) {
-            amount /= call_oracle(HAK)
+            amount /= call_oracle(HAK);
         }
         emit Withdraw(msg.sender, token, amount);
         return amount;
