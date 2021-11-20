@@ -11,12 +11,12 @@ contract Bank is IBank{
     address HAK = 0xBefeeD4CB8c6DD190793b1c97B72B60272f3EA6C;
     address ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    constructor(address _PriceOracle, address _HAK) {
-        PriceOracle = _PriceOracle;
-        HAK = _HAK;
-    }
+    // constructor(address _PriceOracle, address _HAK) {
+    //     PriceOracle = _PriceOracle;
+    //     HAK = _HAK;
+    // }
 
-    function call_oracle(address token) private view returns (uint256) {
+    function call_oracle(address token) public view returns (uint256) {
         return IPriceOracle(PriceOracle).getVirtualPrice(token);
     }
 
