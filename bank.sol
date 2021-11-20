@@ -21,7 +21,7 @@ contract Bank is IBank{
     }
 
     function calc_interest(Account memory user) private view {
-        user.interest += uint256(uint256((block.number - user.lastInterestBlock) * 10000) * uint256(0.03 / 100 * 10000)) * user.deposit;
+        user.interest += uint256(uint256(block.number - user.lastInterestBlock) * uint256((0.03 / 100) * 100000)) / 100000 * user.deposit;
         user.lastInterestBlock = block.number;
     }
 
