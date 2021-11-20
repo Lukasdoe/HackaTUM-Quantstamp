@@ -1,22 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.7.0;
 
-import "bank_interface.sol";
-import "oracle.sol";
+import "./interfaces/IERC20.sol";
+
+import "./interfaces/IBank.sol";
+import "./interfaces/IPriceOracle.sol";
 
 contract Bank is IBank{
 
-    mapping(address => Account) userAccounts;
-    address PriceOracle = 0xc3F639B8a6831ff50aD8113B438E2Ef873845552;
-    address HAK = 0xBefeeD4CB8c6DD190793b1c97B72B60272f3EA6C;
-    address ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    mapping(address => Account) etherAccounts;
+    mapping(address => Account) hakAccounts;
+    
+    address private PriceOracle = 0xc3F639B8a6831ff50aD8113B438E2Ef873845552;
+    address private HAK = 0xBefeeD4CB8c6DD190793b1c97B72B60272f3EA6C;
+    
+    address private ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    // constructor(address _PriceOracle, address _HAK) {
-    //     PriceOracle = _PriceOracle;
-    //     HAK = _HAK;
-    // }
+     constructor(address _PriceOracle, address _HAK) {
+         PriceOracle = _PriceOracle;
+         HAK = _HAK;
+     }
 
-    function call_oracle(address token) public view returns (uint256) {
+    function call_oracle(address token) private view returns (uint256) {
         return IPriceOracle(PriceOracle).getVirtualPrice(token);
     }
 
@@ -26,47 +31,69 @@ contract Bank is IBank{
     }
 
     function deposit(address token, uint256 amount) override payable external returns (bool) {
+        
+        //Interest missing
+        
         if (amount == 0) {
-            return false;
+            revert();
         }
-        if (token == HAK) {
-            amount *= call_oracle(HAK);
+        if(token == HAK){
+            if(!IERC20(token).transferFrom(msg.sender, address(this), amount)){
+                revert();
+            }
+            hakAccounts[msg.sender].deposit += amount;
+        }else if (token == ETH){
+            etherAccounts[msg.sender].deposit += amount;
+        }else{
+            revert("token not supported");
         }
-        else if (token != ETH) {
-            return false;
-        }
-        userAccounts[msg.sender].deposit += amount;
-        calc_interest(userAccounts[msg.sender]);
 
         emit Deposit(msg.sender, token, amount);
         return true;
     }
     
     function withdraw(address token, uint256 amount) override external returns (uint256) {
-        if (token == HAK) {
-            amount *= call_oracle(HAK);
-        }
-        else if (token != ETH) {
-            return 0;
-        }
-
-        if (amount > userAccounts[msg.sender].deposit) {
-            return 0;
-        }
-        else if (amount == 0) {
-            amount = userAccounts[msg.sender].deposit;
-        }
-
-        calc_interest(userAccounts[msg.sender]);
-        userAccounts[msg.sender].deposit -= amount;
-
-        amount += userAccounts[msg.sender].interest;
-        userAccounts[msg.sender].interest = 0;
         
-        if (token == HAK) {
-            amount /= call_oracle(HAK);
+        //Interest missing
+        
+        if (token == ETH){
+            if(etherAccounts[msg.sender].deposit == 0){
+                revert("no balance");
+            }
+            if (amount > etherAccounts[msg.sender].deposit){
+                revert("amount exeeds balance");
+            }else if (amount == 0){
+                msg.sender.transfer(etherAccounts[msg.sender].deposit);
+                etherAccounts[msg.sender].deposit = 0;
+            }else{
+                msg.sender.transfer(amount);
+                etherAccounts[msg.sender].deposit -= amount;
+            }
+
+        }else if (token == HAK) {
+            if(hakAccounts[msg.sender].deposit == 0){
+                revert("no balance");
+            }
+            if (amount > hakAccounts[msg.sender].deposit){
+                revert("amount exeeds balance");
+            }else if (amount == 0){
+                
+                if(IERC20(token).transfer(msg.sender, hakAccounts[msg.sender].deposit)){
+                    revert();
+                }
+                hakAccounts[msg.sender].deposit = 0;
+            }else{
+                if(IERC20(token).transfer(msg.sender, amount)){
+                    revert();
+                }
+                hakAccounts[msg.sender].deposit -= amount;
+            }
+        }else{
+            revert("token not supported");
         }
+        
         emit Withdraw(msg.sender, token, amount);
+        
         return amount;
     }
     
@@ -89,8 +116,8 @@ contract Bank is IBank{
     function getBalance(address token) override view external returns (uint256){
         // ether = ETH
         if (token == ETH) {
-            return userAccounts[msg.sender].deposit;
+            return etherAccounts[msg.sender].deposit;
         }
-        return userAccounts[msg.sender].deposit / call_oracle(token);
+        return hakAccounts[msg.sender].deposit;
     }
 }
