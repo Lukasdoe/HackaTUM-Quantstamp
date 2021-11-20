@@ -25,8 +25,8 @@ contract Bank is IBank{
         return IPriceOracle(PriceOracle).getVirtualPrice(token);
     }
 
-    function calc_interest(Account memory user) private view {
-        user.interest += uint256(uint256(block.number - user.lastInterestBlock) * 0.0003 * user.deposit;
+    function calc_interest(Account storage user) private view {
+        user.interest += uint256(uint256(block.number - user.lastInterestBlock) * user.deposit) / 3333;
         user.lastInterestBlock = block.number;
     }
 
@@ -39,11 +39,11 @@ contract Bank is IBank{
             if(!IERC20(token).transferFrom(msg.sender, address(this), amount)){
                 revert();
             }
-            Account account = hakAccounts[msg.sender];
+            Account storage account = hakAccounts[msg.sender];
             account.deposit += amount;
             calc_interest(account);
         }else if (token == ETH){
-            Account account = etherAccounts[msg.sender];
+            Account storage account = etherAccounts[msg.sender];
             account.deposit += amount;
             calc_interest(account);
         }else{
@@ -59,36 +59,44 @@ contract Bank is IBank{
         //Interest missing
         
         if (token == ETH){
-            if(etherAccounts[msg.sender].deposit == 0){
+            Account storage account = etherAccounts[msg.sender];
+            calc_interest(account);
+            if(account.deposit == 0){
                 revert("no balance");
             }
-            if (amount > etherAccounts[msg.sender].deposit){
+            if (amount > account.deposit){
                 revert("amount exeeds balance");
             }else if (amount == 0){
-                msg.sender.transfer(etherAccounts[msg.sender].deposit);
-                etherAccounts[msg.sender].deposit = 0;
+                msg.sender.transfer(account.deposit + account.interest);
+                account.deposit = 0;
+                account.interest = 0;
             }else{
-                msg.sender.transfer(amount);
-                etherAccounts[msg.sender].deposit -= amount;
+                msg.sender.transfer(amount + account.interest);
+                account.deposit -= amount;
+                account.interest = 0;
             }
 
         }else if (token == HAK) {
-            if(hakAccounts[msg.sender].deposit == 0){
+            Account storage account = hakAccounts[msg.sender];
+            calc_interest(account);
+            if(account.deposit == 0){
                 revert("no balance");
             }
-            if (amount > hakAccounts[msg.sender].deposit){
+            if (amount > account.deposit){
                 revert("amount exeeds balance");
             }else if (amount == 0){
                 
-                if(IERC20(token).transfer(msg.sender, hakAccounts[msg.sender].deposit)){
+                if(!IERC20(token).transfer(msg.sender, account.deposit + account.interest)){
                     revert();
                 }
-                hakAccounts[msg.sender].deposit = 0;
+                account.deposit = 0;
+                account.interest = 0;
             }else{
-                if(IERC20(token).transfer(msg.sender, amount)){
+                if(!IERC20(token).transfer(msg.sender, amount + account.interest)){
                     revert();
                 }
-                hakAccounts[msg.sender].deposit -= amount;
+                account.deposit -= amount;
+                account.interest = 0;
             }
         }else{
             revert("token not supported");
