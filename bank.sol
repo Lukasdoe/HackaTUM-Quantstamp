@@ -95,7 +95,7 @@ contract Bank is IBank{
                 revert("no balance");
             }
             if (amount > account.deposit){
-                revert("amount exeeds balance");
+                revert("amount exceeds balance");
             }else if (amount == 0){
                 uint256 result = account.deposit + account.interest;
                 if(!IERC20(token).transfer(msg.sender, result)){
